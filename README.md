@@ -3,7 +3,7 @@
 ## 1. Project Overview  
 A simple **TODO List application** built to demonstrate a full-stack web project using **FastAPI (backend)**, **ReactJS (frontend)**, and **PostgreSQL** (database).  
 The goal of this project is to apply **DevOps practices** — Dockerize the app, automate testing and deployment via **GitHub Actions**, and publish images to **Docker Hub**.  
-Additionally, this project integrates **ChatGPT API** for AI-assisted task suggestions.
+
 
 ---
 
@@ -83,7 +83,7 @@ Mock_project/
 │   │       ├── exceptions.py
 │   │       ├── router.py
 │   │       ├── schemas.py
-│   │         service.py
+│   │       └── service.py
 │   │
 │   ├── tests/
 │   │   └── test_todos.py
@@ -110,12 +110,12 @@ Mock_project/
 
 🐳 Run with Docker Compose
 
-# 1. Clone repo
+### 1. Clone repo
 ```
 git clone https://github.com/huongtraa/Mock-project.git
 cd Mock-project
 ```
-# 2. Run app
+### 2. Run app
 ```
 docker-compose up --build
 ```
@@ -127,7 +127,7 @@ Frontend: http://localhost:3000
 Backend (Swagger UI): http://localhost:8000/docs
 
 
-# 4. Run unit tests 
+### 3. Run unit tests 
 ```
 docker exec -it to_do_backend-api-1 pytest
 ```
