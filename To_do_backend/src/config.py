@@ -11,11 +11,11 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://todouser:todopass@db:5432/tododb"
     
-    # # CORS setup for Frontend
-    # CORS_ORIGINS: List[str] = ["http://localhost:3000"]
-    # CORS_CREDENTIALS: bool = True
-    # CORS_METHODS: List[str] = ["*"]
-    # CORS_HEADERS: List[str] = ["*"]
+    # CORS setup for Frontend
+    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    CORS_CREDENTIALS: bool = True
+    CORS_METHODS: List[str] = ["*"]
+    CORS_HEADERS: List[str] = ["*"]
     
     # API
     API_V1_PREFIX: str = "/api/v1"
