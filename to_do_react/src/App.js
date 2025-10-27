@@ -1,276 +1,387 @@
-import React, { useEffect, useState } from "react";
-import {
-  getTodos,
-  addTodo,
-  updateTodo,
-  deleteTodo,
-  getCompletedTodos,
-  getPendingTodos,
-} from "./api";
+import React, {useState, useEffect} from "react";
+import "./App.css";
+
+const API_BASE = "http://localhost:8000/api/v1/todos";
 
 function App() {
-  const [todos, setTodos] = useState([]);
-  const [filter, setFilter] = useState("all");
-  const [newTodo, setNewTodo] = useState({ title: "", description: "" });
+    console.log("app is called")
 
-  // Load todos when filter changes
-  useEffect(() => {
-    loadTodos();
-  }, [filter]);
 
-  async function loadTodos() {
-    let data;
-    if (filter === "completed") data = await getCompletedTodos();
-    else if (filter === "pending") data = await getPendingTodos();
-    else data = await getTodos();
-    setTodos(data);
-  }
+    const [todos, setTodos] = useState([]);
+    const [title, setTitle] = useState("");
+    const [description, setDescription] = useState("");
+    const [filter, setFilter] = useState("all");
+    const [page, setPage] = useState(1);
+    const [limit] = useState(10);
+    const [total, setTotal] = useState(0);
+    const [maxPage, setMaxPage] = useState(1);
 
-  async function handleAddTodo(e) {
-    e.preventDefault();
-    if (!newTodo.title.trim()) return alert("Title is required");
-    await addTodo({ ...newTodo, is_completed: false });
-    setNewTodo({ title: "", description: "" });
-    loadTodos();
-  }
+    useEffect(() => {
+        fetchTodos();
+    }, [filter, page, limit]);
 
-  async function handleToggleComplete(todo) {
-    await updateTodo(todo.id, { ...todo, is_completed: !todo.is_completed });
-    loadTodos();
-  }
 
-  async function handleDelete(id) {
-    if (window.confirm("Delete this todo?")) {
-      await deleteTodo(id);
-      loadTodos();
-    }
-  }
+    // View
+    const fetchTodos = async () => {
+        console.log("fetchTodos is called")
+        const skip = (page - 1) * limit;
+        let url = `${API_BASE}?skip=${skip}&limit=${limit}`;
 
-  return (
-    <div style={styles.pageBackground}>
-      <div style={styles.container}>
-        <h1 style={styles.title}>📝 Todo List</h1>
+        if (filter === "completed")
+            url = `${API_BASE}/filter/completed?skip=${skip}&limit=${limit}`;
+        else if (filter === "pending")
+            url = `${API_BASE}/filter/pending?skip=${skip}&limit=${limit}`;
 
-        {/* Add new todo - Card */}
-        <div style={styles.card}>
-          <form onSubmit={handleAddTodo} style={styles.form}>
-            <input
-              type="text"
-              placeholder="Title"
-              value={newTodo.title}
-              onChange={(e) => setNewTodo({ ...newTodo, title: e.target.value })}
-              style={styles.input}
-            />
-            <input
-              type="text"
-              placeholder="Description"
-              value={newTodo.description}
-              onChange={(e) => setNewTodo({ ...newTodo, description: e.target.value })}
-              style={styles.input}
-            />
-            <button type="submit" style={styles.addButton}>Add</button>
-          </form>
-        </div>
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            setTodos(data.items);
+            setTotal(data.total);
+            setMaxPage(Math.ceil(data.total / limit));
+        } catch (err) {
+            console.error("❌ Error fetching todos:", err);
+        }
+    };
 
-        {/* Filter buttons */}
-        <div style={styles.filter}>
-          <button
-            style={filter === "all" ? styles.activeButton : styles.button}
-            onClick={() => setFilter("all")}
-          >
-            All
-          </button>
-          <button
-            style={filter === "completed" ? styles.activeButton : styles.button}
-            onClick={() => setFilter("completed")}
-          >
-            Completed
-          </button>
-          <button
-            style={filter === "pending" ? styles.activeButton : styles.button}
-            onClick={() => setFilter("pending")}
-          >
-            Pending
-          </button>
-        </div>
+    // --- Add new todo ---
+    const handleAddTodo = async (e) => {
+        e.preventDefault();
+        if (!title.trim()) return alert("Title is required");
 
-        {/* Todo list */}
-        <ul style={styles.list}>
-          {todos.length === 0 ? (
-            <div style={styles.card}>
-              <p style={styles.emptyText}>No todos found.</p>
+        try {
+            const res = await fetch(API_BASE, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({title, description, is_completed: false}),
+            });
+            if (!res.ok) throw new Error("Failed to add todo");
+
+            // Add new item to the top of the list
+            let newItem = await res.json();
+            setTodos(todos.length < limit ? [newItem, ...todos] : [newItem, ...todos.slice(0, limit - 1)]);
+            setPage(1);
+
+            // Update total and maxPage
+            setTotal(total + 1);
+            setMaxPage(Math.ceil(total / limit));
+
+            // Reset form fields
+            setTitle("");
+            setDescription("");
+        } catch (err) {
+            console.error("❌ Error adding todo:", err);
+        }
+    };
+
+    const handleToggleComplete = async (todo) => {
+        try {
+            const res = await fetch(`${API_BASE}/${todo.id}`, {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({...todo, is_completed: !todo.is_completed}),
+            });
+            if (!res.ok) throw new Error("Failed to toggle todo");
+
+            const skip = (page - 1) * limit;
+            let url = `${API_BASE}?skip=${skip}&limit=${limit}`;
+            if (filter === "completed")
+                url = `${API_BASE}/filter/completed?skip=${skip}&limit=${limit}`;
+            else if (filter === "pending")
+                url = `${API_BASE}/filter/pending?skip=${skip}&limit=${limit}`;
+
+            const refreshed = await fetch(url);
+            const data = await refreshed.json();
+            setTodos(data.items);
+            setTotal(data.total);
+        } catch (err) {
+            console.error("❌ Error toggling todo:", err);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Delete this todo?")) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/${id}`, {method: "DELETE"});
+            if (!res.ok) throw new Error("Failed to delete todo");
+
+            // If we deleted the last item IN THE LAST PAGE, go to the previous page
+            if (page === maxPage && todos.length === 1) {
+                setPage(page - 1);
+            }
+
+            // If we deleted the last item IN THE WHOLE LIST
+            if (todos.length === 1) {
+                setTodos([]);
+                setTotal(0);
+                setMaxPage(1);
+                setPage(1);
+                return;
+            }
+
+            const skip = (page - 1) * limit;
+            let url = `${API_BASE}?skip=${skip}&limit=${limit}`;
+            if (filter === "completed")
+                url = `${API_BASE}/filter/completed?skip=${skip}&limit=${limit}`;
+            else if (filter === "pending")
+                url = `${API_BASE}/filter/pending?skip=${skip}&limit=${limit}`;
+
+            const refreshed = await fetch(url);
+            const data = await refreshed.json();
+            setTodos(data.items);
+
+            // Update total, maxPage
+            setTotal(total - 1);
+            setMaxPage(Math.ceil(total / limit));
+
+
+        } catch (err) {
+            console.error("❌ Error deleting todo:", err);
+        }
+    };
+
+
+    return (
+        <div className="todo-container">
+            <h1 className="todo-header">📝 Todo List</h1>
+
+            {/* Add Todo Form */}
+            <form onSubmit={handleAddTodo} className="todo-form">
+                <input
+                    type="text"
+                    placeholder="Enter title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="todo-input"
+                />
+                <input
+                    type="text"
+                    placeholder="Enter description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="todo-input"
+                />
+                <button type="submit" className="btn add-btn">➕ Add</button>
+            </form>
+
+            {/* Filter Buttons */}
+            <div className="filter-container">
+                {["all", "completed", "pending"].map((f) => (
+                    <button
+                        key={f}
+                        onClick={() => {
+                            setFilter(f);
+                            setPage(1);
+                        }}
+                        className={`btn filter-btn ${filter === f ? "active" : ""}`}
+                    >
+                        {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </button>
+                ))}
             </div>
-          ) : (
-            todos.map((todo) => (
-              <li key={todo.id} style={styles.todoCard}>
-                <div>
-                  <strong style={{
-                    textDecoration: todo.is_completed ? "line-through" : "none",
-                    color: todo.is_completed ? "#999" : "#333"
-                  }}>
-                    {todo.title}
-                  </strong>
-                  <p style={{ 
-                    margin: "5px 0", 
-                    color: todo.is_completed ? "#999" : "#666",
-                    fontSize: "14px"
-                  }}>
-                    {todo.description}
-                  </p>
-                  <div style={{ fontSize: "14px", marginTop: "8px" }}>
-                    Status:{" "}
-                    {todo.is_completed ? (
-                      <span style={{ color: "green", fontWeight: "500" }}>✅ Completed</span>
-                    ) : (
-                      <span style={{ color: "orange", fontWeight: "500" }}>⏳ Pending</span>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    onClick={() => handleToggleComplete(todo)}
-                    style={styles.smallButton}
-                  >
-                    {todo.is_completed ? "Undo" : "Complete"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(todo.id)}
-                    style={styles.deleteButton}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
-    </div>
-  );
-}
 
-const styles = {
-  pageBackground: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    padding: "40px 20px",
-  },
-  container: {
-    maxWidth: "700px",
-    margin: "0 auto",
-    fontFamily: "Arial, sans-serif",
-  },
-  title: {
-    textAlign: "center",
-    color: "white",
-    fontSize: "2.5rem",
-    marginBottom: "30px",
-    textShadow: "2px 2px 4px rgba(0,0,0,0.2)",
-  },
-  card: {
-    background: "white",
-    borderRadius: "12px",
-    padding: "24px",
-    marginBottom: "20px",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-  },
-  form: { 
-    display: "flex", 
-    gap: "10px",
-    flexWrap: "wrap",
-  },
-  input: {
-    flex: "1",
-    minWidth: "200px",
-    padding: "12px",
-    borderRadius: "8px",
-    border: "2px solid #e0e0e0",
-    fontSize: "14px",
-  },
-  addButton: {
-    padding: "12px 24px",
-    background: "#667eea",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontWeight: "600",
-    cursor: "pointer",
-    transition: "background 0.3s",
-  },
-  filter: { 
-    marginBottom: "20px",
-    textAlign: "center",
-    display: "flex",
-    justifyContent: "center",
-    gap: "10px",
-    flexWrap: "wrap",
-  },
-  button: {
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "none",
-    background: "white",
-    color: "#333",
-    fontWeight: "600",
-    cursor: "pointer",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-    transition: "all 0.3s",
-  },
-  activeButton: {
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "none",
-    background: "#667eea",
-    color: "white",
-    fontWeight: "600",
-    cursor: "pointer",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    transform: "scale(1.05)",
-  },
-  list: { 
-    listStyle: "none", 
-    padding: 0,
-    margin: 0,
-  },
-  todoCard: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "20px",
-    marginBottom: "12px",
-    background: "white",
-    borderRadius: "12px",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-    transition: "transform 0.2s, box-shadow 0.2s",
-  },
-  emptyText: {
-    textAlign: "center",
-    color: "#999",
-    fontSize: "16px",
-  },
-  smallButton: {
-    padding: "8px 16px",
-    background: "#28a745",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    fontWeight: "500",
-    cursor: "pointer",
-    fontSize: "14px",
-    transition: "background 0.3s",
-  },
-  deleteButton: {
-    padding: "8px 16px",
-    background: "#dc3545",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    fontWeight: "500",
-    cursor: "pointer",
-    fontSize: "14px",
-    transition: "background 0.3s",
-  },
-};
+            {/* Todo Table */}
+            <div className="todo-table-container">
+                <table className="todo-table">
+                    <thead className="table-header">
+                    <tr>
+                        <th className="th">#</th>
+                        <th className="th">Title</th>
+                        <th className="th">Description</th>
+                        <th className="th">Status</th>
+                        <th className="th">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {todos.length === 0 ? (
+                        <tr>
+                            <td colSpan="5" className="empty-cell">No Results Found</td>
+                        </tr>
+                    ) : (
+                        todos.map((todo, index) => (
+                            <tr key={todo.id} className="tr">
+                                <td className="td">{(page - 1) * limit + index + 1}</td>
+                                <td className={`td ${todo.is_completed ? "completed" : ""}`}>
+                                    {todo.title}
+                                </td>
+                                <td className="td">{todo.description}</td>
+                                <td className="td">
+                                    {todo.is_completed ? (
+                                        <span className="status status-done">✅ Completed</span>
+                                    ) : (
+                                        <span className="status status-pending">⏳ Pending</span>
+                                    )}
+                                </td>
+                                <td className="td">
+                                    <button
+                                        onClick={() => handleToggleComplete(todo)}
+                                        className={`btn sm-btn ${todo.is_completed ? "btn-undo" : "btn-done"}`}
+                                    >
+                                        {todo.is_completed ? "Undo" : "Done"}
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(todo.id)}
+                                        className="btn sm-btn btn-delete"
+                                    >
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        ))
+                    )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="pagination">
+                <button
+                    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={page === 1}
+                    className="btn page-btn"
+                >
+                    ⬅ Prev
+                </button>
+                {maxPage === 0 ? (
+                    <span className="page-info">Page 1 / 1</span>
+                ) : (
+                    <span className="page-info">Page {page} / {maxPage}</span>
+                )}
+                <button
+                    onClick={() => setPage((prev) => (prev < maxPage ? prev + 1 : prev))}
+                    disabled={page >= maxPage}
+                    className="btn page-btn"
+                >
+                    Next ➡
+                </button>
+            </div>
+        </div>
+    );
+}
 
 
 export default App;
+
+// --------------------------
+// Styles
+// --------------------------
+const styles = {
+    container: {
+        width: "100vw",            // full screen width
+        height: "100vh",           // full screen height
+        margin: 0,
+        padding: "40px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        background: "linear-gradient(135deg, #5f00b3, #007bff)", // 💜→💙
+        color: "white", // make text visible on dark background
+    },
+    header: {
+        textAlign: "center",
+        color: "#007bff",
+        fontSize: "32px",
+        marginBottom: "20px",
+    },
+    form: {
+        display: "flex",
+        gap: "10px",
+        marginBottom: "20px",
+    },
+    input: {
+        flex: 1,
+        padding: "10px",
+        borderRadius: "6px",
+        border: "1px solid #ccc",
+    },
+    addButton: {
+        backgroundColor: "#007bff",
+        color: "white",
+        border: "none",
+        borderRadius: "6px",
+        padding: "10px 16px",
+        cursor: "pointer",
+    },
+    filterContainer: {
+        display: "flex",
+        justifyContent: "center",
+        gap: "10px",
+        marginBottom: "15px",
+    },
+    filterButton: {
+        border: "none",
+        padding: "8px 16px",
+        borderRadius: "6px",
+        cursor: "pointer",
+        fontWeight: "bold",
+    },
+    todoTableContainer: {
+        maxHeight: "400px",
+        overflowY: "auto",
+        marginTop: "20px",
+        marginBottom: "20px",
+        borderRadius: "10px",
+        backgroundColor: "#fff",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+    },
+    todoTable: {
+        width: "100%",
+        borderCollapse: "collapse",
+        minWidth: "600px",
+    },
+    tableHeader: {
+        position: "sticky",
+        top: 0,
+        backgroundColor: "#007bff",
+        color: "white",
+        zIndex: 1,
+    },
+    th: {
+        padding: "12px",
+        textAlign: "left",
+        fontWeight: "bold",
+        borderBottom: "2px solid #ddd",
+    },
+    td: {
+        padding: "10px",
+        borderBottom: "1px solid #eee",
+        verticalAlign: "top",
+    },
+    tr: {
+        transition: "background 0.2s ease",
+    },
+    emptyCell: {
+        textAlign: "center",
+        padding: "40px",
+        color: "#888",
+    },
+    smallButton: {
+        border: "none",
+        borderRadius: "6px",
+        color: "white",
+        padding: "6px 10px",
+        cursor: "pointer",
+        fontSize: "13px",
+    },
+    pagination: {
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: "10px",
+        marginTop: "10px",
+    },
+    pageButton: {
+        padding: "8px 14px",
+        borderRadius: "6px",
+        border: "none",
+        backgroundColor: "#007bff",
+        color: "white",
+        cursor: "pointer",
+    },
+    pageInfo: {
+        fontWeight: "bold",
+    },
+};

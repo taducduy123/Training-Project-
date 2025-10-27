@@ -12,7 +12,8 @@ class TodoBase(BaseModel):#parent class
     description: Optional[str] = Field(None, max_length=1000, description="Todo description")
     is_completed: bool = Field(default=False, description="Completion status")
 
-
+'''
+'''
 class TodoCreate(TodoBase): # inherit all for TodoBase
     """Schema for creating a new todo"""
     pass
