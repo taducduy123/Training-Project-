@@ -1,209 +1,322 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import {
+  getTodos,
+  addTodo,
+  updateTodo,
+  deleteTodo,
+  getCompletedTodos,
+  getPendingTodos,
+} from "./api";
 
-const API_BASE = "http://localhost:8000/api/v1/todos";
-
-function TodoApp() {
+function App() {
   const [todos, setTodos] = useState([]);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [filter, setFilter] = useState("all");
+  const [newTodo, setNewTodo] = useState({ title: "", description: "" });
+  const [page, setPage] = useState(1);
+  const [limit] = useState(5);
+  const [total, setTotal] = useState(0);
 
-  // Fetch todos when filter changes
+  // Fetch todos when page or filter changes
   useEffect(() => {
-    let url = API_BASE;
-    if (filter === "completed") url += "/filter/completed";
-    else if (filter === "pending") url += "/filter/pending";
+    fetchTodos();
+  }, [filter, page]);
 
-    fetch(url)
-      .then(res => res.json())
-      .then(data => setTodos(data))
-      .catch(err => console.error("❌ Error fetching todos:", err));
-  }, [filter]);
+  const fetchTodos = async () => {
+    let response;
+    if (filter === "all") response = await getTodos(page, limit);
+    else if (filter === "completed") response = await getCompletedTodos(page, limit);
+    else response = await getPendingTodos(page, limit);
 
-  // Add a new todo
-  const addTodo = async (e) => {
+    setTodos(response.items);
+    setTotal(response.total);
+  };
+
+  const handleAddTodo = async (e) => {
     e.preventDefault();
-    const newTodo = { title, description, is_completed: false };
-
-    const res = await fetch(API_BASE, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newTodo),
-    });
-
-    const data = await res.json();
-    setTodos([...todos, data]);
-    setTitle("");
-    setDescription("");
+    if (!newTodo.title.trim()) return alert("Please enter a title!");
+    await addTodo(newTodo);
+    setNewTodo({ title: "", description: "" });
+    fetchTodos();
   };
 
-  // Toggle complete
-  const toggleTodo = async (id, is_completed) => {
-    const res = await fetch(`${API_BASE}/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_completed: !is_completed }),
-    });
-    const updated = await res.json();
-    setTodos(todos.map(t => (t.id === id ? updated : t)));
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this todo?")) {
+      await deleteTodo(id);
+      fetchTodos();
+    }
   };
 
-  // Delete
-  const deleteTodo = async (id) => {
-    await fetch(`${API_BASE}/${id}`, { method: "DELETE" });
-    setTodos(todos.filter(t => t.id !== id));
+  const handleToggleComplete = async (todo) => {
+    await updateTodo(todo.id, { ...todo, is_completed: !todo.is_completed });
+    fetchTodos();
   };
+
+  const totalPages = Math.ceil(total / limit);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-5xl font-bold text-gray-800 mb-2 flex items-center justify-center gap-3">
-            <span className="text-6xl">📝</span>
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Todo List
-            </span>
-          </h1>
-          <p className="text-gray-600 mt-2">Organize your tasks efficiently</p>
-        </div>
+    <div style={styles.container}>
+      <style>
+        {`
+          ::-webkit-scrollbar { width: 8px; }
+          ::-webkit-scrollbar-thumb {
+            background-color: #007bff;
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover { background-color: #0056b3; }
+        `}
+      </style>
 
-        {/* Add Todo Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100">
-          <form onSubmit={addTodo} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              placeholder="Title"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              required
-              className="flex-1 px-5 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 transition-colors text-gray-700 placeholder-gray-400"
-            />
-            <input
-              type="text"
-              placeholder="Description"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              required
-              className="flex-1 px-5 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 transition-colors text-gray-700 placeholder-gray-400"
-            />
-            <button
-              type="submit"
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-            >
-              Add
-            </button>
-          </form>
-        </div>
+      <h1 style={styles.header}>📝 Todo List</h1>
 
-        {/* Filter Buttons */}
-        <div className="flex flex-wrap justify-center gap-3 mb-8">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 ${
-              filter === "all"
-                ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg scale-105"
-                : "bg-white text-gray-700 hover:bg-gray-50 shadow-md"
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter("completed")}
-            className={`px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 ${
-              filter === "completed"
-                ? "bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg scale-105"
-                : "bg-white text-gray-700 hover:bg-gray-50 shadow-md"
-            }`}
-          >
-            Completed
-          </button>
-          <button
-            onClick={() => setFilter("pending")}
-            className={`px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 ${
-              filter === "pending"
-                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg scale-105"
-                : "bg-white text-gray-700 hover:bg-gray-50 shadow-md"
-            }`}
-          >
-            Pending
-          </button>
-        </div>
+      {/* Add Todo Form */}
+      <form onSubmit={handleAddTodo} style={styles.form}>
+        <input
+          type="text"
+          placeholder="Enter title"
+          value={newTodo.title}
+          onChange={(e) => setNewTodo({ ...newTodo, title: e.target.value })}
+          style={styles.input}
+        />
+        <input
+          type="text"
+          placeholder="Enter description"
+          value={newTodo.description}
+          onChange={(e) => setNewTodo({ ...newTodo, description: e.target.value })}
+          style={styles.input}
+        />
+        <button type="submit" style={styles.addButton}>
+          ➕ Add
+        </button>
+      </form>
 
-        {/* Todo List */}
-        {todos.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
-            <div className="text-6xl mb-4">🎯</div>
-            <p className="text-gray-500 text-lg">No todos found.</p>
-            <p className="text-gray-400 text-sm mt-2">Add a task to get started!</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {todos.map(todo => (
-              <div
-                key={todo.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl p-6 border border-gray-100 transition-all duration-200 transform hover:-translate-y-1"
-              >
-                <div className="flex items-start gap-4">
-                  {/* Checkbox Circle */}
-                  <div
-                    onClick={() => toggleTodo(todo.id, todo.is_completed)}
-                    className={`flex-shrink-0 w-6 h-6 rounded-full border-2 cursor-pointer transition-all duration-200 flex items-center justify-center ${
-                      todo.is_completed
-                        ? "bg-green-500 border-green-500"
-                        : "border-gray-300 hover:border-green-400"
-                    }`}
+      {/* Filter Buttons */}
+      <div style={styles.filterContainer}>
+        {["all", "completed", "pending"].map((f) => (
+          <button
+            key={f}
+            onClick={() => {
+              setFilter(f);
+              setPage(1);
+            }}
+            style={{
+              ...styles.filterButton,
+              backgroundColor: filter === f ? "#007bff" : "#e9ecef",
+              color: filter === f ? "white" : "#333",
+            }}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Todo Table */}
+      <div style={styles.todoTableContainer}>
+        <table style={styles.todoTable}>
+          <thead style={styles.tableHeader}>
+            <tr>
+              <th style={styles.th}>#</th>
+              <th style={styles.th}>Title</th>
+              <th style={styles.th}>Description</th>
+              <th style={styles.th}>Status</th>
+              <th style={styles.th}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {todos.length === 0 ? (
+              <tr>
+                <td colSpan="5" style={styles.emptyCell}>No todos found.</td>
+              </tr>
+            ) : (
+              todos.map((todo, index) => (
+                <tr key={todo.id} style={styles.tr}>
+                  <td style={styles.td}>{(page - 1) * limit + index + 1}</td>
+                  <td
+                    style={{
+                      ...styles.td,
+                      textDecoration: todo.is_completed ? "line-through" : "none",
+                      color: todo.is_completed ? "#999" : "#333",
+                    }}
                   >
-                    {todo.is_completed && (
-                      <svg className="w-4 h-4 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
-                        <path d="M5 13l4 4L19 7"></path>
-                      </svg>
+                    {todo.title}
+                  </td>
+                  <td style={styles.td}>{todo.description}</td>
+                  <td style={styles.td}>
+                    {todo.is_completed ? (
+                      <span style={{ color: "#28a745", fontWeight: "bold" }}>
+                        ✅ Completed
+                      </span>
+                    ) : (
+                      <span style={{ color: "#f0ad4e", fontWeight: "bold" }}>
+                        ⏳ Pending
+                      </span>
                     )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <h3
-                      className={`text-lg font-semibold mb-1 ${
-                        todo.is_completed
-                          ? "line-through text-gray-400"
-                          : "text-gray-800"
-                      }`}
-                    >
-                      {todo.title}
-                    </h3>
-                    <p className={`text-sm ${
-                      todo.is_completed ? "text-gray-400" : "text-gray-600"
-                    }`}>
-                      {todo.description}
-                    </p>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 flex-shrink-0">
+                  </td>
+                  <td style={styles.td}>
                     <button
-                      onClick={() => toggleTodo(todo.id, todo.is_completed)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                        todo.is_completed
-                          ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                          : "bg-green-100 text-green-700 hover:bg-green-200"
-                      }`}
+                      onClick={() => handleToggleComplete(todo)}
+                      style={{
+                        ...styles.smallButton,
+                        backgroundColor: todo.is_completed ? "#ffc107" : "#28a745",
+                      }}
                     >
                       {todo.is_completed ? "Undo" : "Done"}
                     </button>
                     <button
-                      onClick={() => deleteTodo(todo.id)}
-                      className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+                      onClick={() => handleDelete(todo.id)}
+                      style={{
+                        ...styles.smallButton,
+                        backgroundColor: "#dc3545",
+                        marginLeft: "6px",
+                      }}
                     >
                       Delete
                     </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <div style={styles.pagination}>
+        <button
+          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+          disabled={page === 1}
+          style={styles.pageButton}
+        >
+          ⬅ Prev
+        </button>
+        <span style={styles.pageInfo}>
+          Page {page} / {totalPages || 1}
+        </span>
+        <button
+          onClick={() => setPage((prev) => (prev < totalPages ? prev + 1 : prev))}
+          disabled={page >= totalPages}
+          style={styles.pageButton}
+        >
+          Next ➡
+        </button>
       </div>
     </div>
   );
 }
-export default TodoApp;
+
+export default App;
+
+// --------------------------
+// Styles
+// --------------------------
+const styles = {
+  container: {
+    maxWidth: "900px",
+    margin: "40px auto",
+    padding: "20px",
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+  },
+  header: {
+    textAlign: "center",
+    color: "#007bff",
+    fontSize: "32px",
+    marginBottom: "20px",
+  },
+  form: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "20px",
+  },
+  input: {
+    flex: 1,
+    padding: "10px",
+    borderRadius: "6px",
+    border: "1px solid #ccc",
+  },
+  addButton: {
+    backgroundColor: "#007bff",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    padding: "10px 16px",
+    cursor: "pointer",
+  },
+  filterContainer: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "10px",
+    marginBottom: "15px",
+  },
+  filterButton: {
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+  todoTableContainer: {
+    maxHeight: "400px",
+    overflowY: "auto",
+    marginTop: "20px",
+    marginBottom: "20px",
+    borderRadius: "10px",
+    backgroundColor: "#fff",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+  },
+  todoTable: {
+    width: "100%",
+    borderCollapse: "collapse",
+    minWidth: "600px",
+  },
+  tableHeader: {
+    position: "sticky",
+    top: 0,
+    backgroundColor: "#007bff",
+    color: "white",
+    zIndex: 1,
+  },
+  th: {
+    padding: "12px",
+    textAlign: "left",
+    fontWeight: "bold",
+    borderBottom: "2px solid #ddd",
+  },
+  td: {
+    padding: "10px",
+    borderBottom: "1px solid #eee",
+    verticalAlign: "top",
+  },
+  tr: {
+    transition: "background 0.2s ease",
+  },
+  emptyCell: {
+    textAlign: "center",
+    padding: "40px",
+    color: "#888",
+  },
+  smallButton: {
+    border: "none",
+    borderRadius: "6px",
+    color: "white",
+    padding: "6px 10px",
+    cursor: "pointer",
+    fontSize: "13px",
+  },
+  pagination: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: "10px",
+    marginTop: "10px",
+  },
+  pageButton: {
+    padding: "8px 14px",
+    borderRadius: "6px",
+    border: "none",
+    backgroundColor: "#007bff",
+    color: "white",
+    cursor: "pointer",
+  },
+  pageInfo: {
+    fontWeight: "bold",
+  },
+};
