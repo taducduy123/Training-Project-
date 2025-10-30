@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from src.todos.schemas import TodoCreate, TodoUpdate, TodoResponse, TodoListResponse
 from src.todos.service import TodoService
 from src.todos.dependencies import get_todo_service, get_db
+from typing import Optional
 
 router = APIRouter(prefix="/todos", tags=["Todos"])
 
@@ -14,10 +15,11 @@ router = APIRouter(prefix="/todos", tags=["Todos"])
 def get_todos(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(10, ge=1, le=100, description="Number of items to return"),
-    service: TodoService = Depends(get_todo_service)
+    search: Optional[str] = Query(None, description="Search keywords separated by spaces"),  # ✅ NEW
+    service: TodoService = Depends(get_todo_service),
 ):
-    """Get all todos with pagination"""
-    result = service.get_all_todos_paginated(skip, limit)
+    """Get all todos with pagination and optional search"""
+    result = service.get_all_todos_paginated(skip=skip, limit=limit, search=search)
     items = [TodoResponse.from_orm(todo) for todo in result["items"]]
     return TodoListResponse(total=result["total"], items=items)
 
@@ -82,11 +84,12 @@ def delete_todo(
 def get_completed_todos(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    search: Optional[str] = Query(None, description="Search keyword"),  # ✅ Added here
+    db: Session = Depends(get_db),
 ):
-    """Get completed todos"""
+    """Get completed todos (with optional search)"""
     service = TodoService(db)
-    result = service.get_completed_todos_paginated(skip, limit)
+    result = service.get_completed_todos_paginated(skip=skip, limit=limit, search=search)
     items = [TodoResponse.from_orm(todo) for todo in result["items"]]
     return TodoListResponse(total=result["total"], items=items)
 
@@ -95,10 +98,12 @@ def get_completed_todos(
 def get_pending_todos(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    search: Optional[str] = Query(None, description="Search keyword"),  # ✅ Added here too
+    db: Session = Depends(get_db),
 ):
-    """Get pending todos"""
+    """Get pending todos (with optional search)"""
     service = TodoService(db)
-    result = service.get_pending_todos_paginated(skip, limit)
+    result = service.get_pending_todos_paginated(skip=skip, limit=limit, search=search)
     items = [TodoResponse.from_orm(todo) for todo in result["items"]]
     return TodoListResponse(total=result["total"], items=items)
+
