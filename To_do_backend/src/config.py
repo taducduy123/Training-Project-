@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # Database
-    DATABASE_URL: str = "postgresql://todouser:todopass@db:5432/tododb"
+    DATABASE_URL: str = "postgresql://postgres:1234@localhost:5432/postgres"
     
     # CORS setup for Frontend
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
